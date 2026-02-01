@@ -1,0 +1,403 @@
+/* Google Fonts - Roboto */
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500&display=swap');
+
+@import "tailwindcss";
+
+:root {
+  /* Google Blue Palette */
+  --google-blue: #1a73e8;
+  --google-blue-hover: #1557b0;
+  --google-blue-light: #e8f0fe;
+
+  /* Google Green */
+  --google-green: #1e8e3e;
+  --google-green-light: #e6f4ea;
+
+  /* Google Red */
+  --google-red: #d93025;
+  --google-red-light: #fce8e6;
+
+  /* Google Yellow/Orange */
+  --google-yellow: #f9ab00;
+  --google-yellow-light: #fef7e0;
+
+  /* Neutral Colors */
+  --surface: #ffffff;
+  --surface-dim: #f8f9fa;
+  --surface-variant: #f1f3f4;
+  --on-surface: #202124;
+  --on-surface-variant: #5f6368;
+  --outline: #dadce0;
+  --outline-variant: #e8eaed;
+}
+
+/* Base Styles */
+* {
+  font-family: 'Roboto', -apple-system, BlinkMacSystemFont, sans-serif;
+  box-sizing: border-box;
+}
+
+body {
+  background-color: var(--surface-dim);
+  color: var(--on-surface);
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Google-style Card */
+.g-card {
+  background: var(--surface);
+  border-radius: 8px;
+  border: 1px solid var(--outline);
+  transition: box-shadow 0.2s ease;
+}
+
+.g-card:hover {
+  box-shadow: 0 1px 3px 0 rgba(60, 64, 67, 0.3), 0 4px 8px 3px rgba(60, 64, 67, 0.15);
+}
+
+/* Google-style Outlined Field Container */
+.g-field {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.g-input {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  padding: 12px 16px;
+  font-size: 14px;
+  line-height: 1.5;
+  border: 1px solid var(--outline);
+  border-radius: 4px;
+  background: transparent;
+  /* Transparent so surface color under label shows through */
+  color: var(--on-surface);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.g-field label {
+  position: absolute;
+  left: 12px;
+  top: 12px;
+  padding: 0 4px;
+  font-size: 14px;
+  color: var(--on-surface-variant);
+  pointer-events: none;
+  transition: all 0.2s ease;
+  background-color: var(--surface);
+  z-index: 1;
+}
+
+/* Ensure labels inside the gray save dialog match the dialog background */
+.bg-\[var\(--surface-variant\)\] .g-field label {
+  background-color: var(--surface-variant);
+}
+
+/* Float label on focus or when input isn't empty */
+.g-input:focus+label,
+.g-input:not(:placeholder-shown)+label {
+  top: -8px;
+  left: 10px;
+  font-size: 11px;
+  color: var(--google-blue);
+  font-weight: 500;
+  z-index: 1;
+}
+
+.g-input::placeholder {
+  color: transparent;
+  /* Keep placeholder hidden while label is overlapping */
+}
+
+.g-input:focus {
+  outline: none;
+  border: 2px solid var(--google-blue);
+  padding: 11px 15px;
+  /* Shrink padding slightly for 2px border to avoid jumps */
+}
+
+.g-input:disabled {
+  background: var(--surface-variant);
+  color: var(--on-surface-variant);
+  border-color: var(--outline-variant);
+}
+
+.g-input:disabled+label {
+  background: transparent;
+  color: var(--on-surface-variant);
+  opacity: 0.6;
+}
+
+/* Hide default browser eye icon */
+input::-ms-reveal,
+input::-ms-clear,
+input::-webkit-contacts-auto-fill-button,
+input::-webkit-credentials-auto-fill-button {
+  display: none !important;
+}
+
+/* Fix for flex layout with inputs */
+.g-input.flex-1 {
+  flex: 1 1 0%;
+  min-width: 0;
+}
+
+/* Port input should be fixed width */
+.g-input-port {
+  width: 80px !important;
+  flex: none !important;
+}
+
+/* Google-style Button (Filled) */
+.g-btn-filled {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 24px;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  background-color: #1a73e8 !important;
+  color: white !important;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 1px 2px 0 rgba(60, 64, 67, 0.3);
+}
+
+.g-btn-filled:hover:not(:disabled) {
+  background-color: #1557b0 !important;
+  box-shadow: 0 1px 3px 1px rgba(60, 64, 67, 0.15);
+}
+
+.g-btn-filled:active:not(:disabled) {
+  background-color: #174ea6 !important;
+  box-shadow: 0 1px 2px 0 rgba(60, 64, 67, 0.3);
+}
+
+.g-btn-filled:disabled {
+  background-color: #1a73e8 !important;
+  opacity: 0.38;
+  color: white !important;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* Green variant for migrate button */
+.g-btn-filled-green {
+  background-color: #1e8e3e !important;
+}
+
+.g-btn-filled-green:hover:not(:disabled) {
+  background-color: #137333 !important;
+}
+
+.g-btn-filled-green:disabled {
+  background-color: #1e8e3e !important;
+  opacity: 0.38;
+}
+
+.g-btn-outlined {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 9px 23px;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  background: transparent;
+  color: var(--google-blue);
+  border: 1px solid var(--outline);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s, border-color 0.2s;
+}
+
+.g-btn-outlined:hover {
+  background: var(--google-blue-light);
+  border-color: var(--google-blue-light);
+}
+
+/* Google-style Button (Text) */
+.g-btn-text {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  background: transparent;
+  color: var(--google-blue);
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.g-btn-text:hover {
+  background: var(--google-blue-light);
+}
+
+/* Google-style Checkbox */
+.g-checkbox {
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  border: 2px solid var(--on-surface-variant);
+  border-radius: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  background: var(--surface);
+}
+
+.g-checkbox.checked {
+  background: var(--google-blue);
+  border-color: var(--google-blue);
+}
+
+/* Google-style Chip/Badge */
+.g-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  background: var(--surface-variant);
+  color: var(--on-surface-variant);
+  border-radius: 16px;
+}
+
+.g-chip-success {
+  background: var(--google-green-light);
+  color: var(--google-green);
+}
+
+.g-chip-error {
+  background: var(--google-red-light);
+  color: var(--google-red);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--outline);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--on-surface-variant);
+}
+
+/* Progress bar */
+.g-progress {
+  height: 4px;
+  background: var(--surface-variant);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.g-progress-bar {
+  height: 100%;
+  background: var(--google-blue);
+  transition: width 0.3s ease;
+}
+
+/* Select */
+.g-select {
+  padding: 8px 32px 8px 12px;
+  font-size: 14px;
+  border: 1px solid var(--outline);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--on-surface);
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%235f6368' d='M2 4l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+}
+
+.g-select:focus {
+  outline: none;
+  border-color: var(--google-blue);
+}
+
+/* Status indicator */
+.g-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.g-status-dot.online {
+  background: var(--google-green);
+}
+
+.g-status-dot.offline {
+  background: var(--outline);
+}
+
+/* Animation */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.g-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--surface-variant);
+  border-top-color: var(--google-blue);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+/* Alert/Banner */
+.g-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.g-alert-warning {
+  background: var(--google-yellow-light);
+  color: #5f4700;
+}
+
+.g-alert-error {
+  background: var(--google-red-light);
+  color: var(--google-red);
+}
+
+.g-alert-success {
+  background: var(--google-green-light);
+  color: var(--google-green);
+}
+
+.g-alert-info {
+  background: var(--google-blue-light);
+  color: var(--google-blue);
+}
