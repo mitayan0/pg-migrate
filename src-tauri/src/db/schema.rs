@@ -22,6 +22,26 @@ pub struct ColumnInfo {
     pub ordinal_position: i32,
 }
 
+/// Foreign key dependency information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ForeignKey {
+    pub constraint_name: String,
+    pub table_schema: String,
+    pub table_name: String,
+    pub column_name: String,
+    pub foreign_table_schema: String,
+    pub foreign_table_name: String,
+    pub foreign_column_name: String,
+}
+
+/// Table dependency info for sorting
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TableDependency {
+    pub schema: String,
+    pub name: String,
+    pub depends_on: Vec<(String, String)>, // (schema, table)
+}
+
 /// Full table schema
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TableSchema {
@@ -94,7 +114,11 @@ pub async fn get_row_count(pool: &PgPool, schema: &str, table: &str) -> Result<i
 }
 
 /// Get table schema (columns, types, constraints)
-pub async fn get_table_schema(pool: &PgPool, schema: &str, table: &str) -> Result<TableSchema, String> {
+pub async fn get_table_schema(
+    pool: &PgPool,
+    schema: &str,
+    table: &str,
+) -> Result<TableSchema, String> {
     // Get columns
     let columns_query = r#"
         SELECT 
@@ -145,7 +169,8 @@ pub async fn get_table_schema(pool: &PgPool, schema: &str, table: &str) -> Resul
         .collect();
 
     // Generate CREATE TABLE statement
-    let create_statement = generate_create_table_statement(schema, table, &columns, &primary_key_columns);
+    let create_statement =
+        generate_create_table_statement(schema, table, &columns, &primary_key_columns);
 
     Ok(TableSchema {
         table_name: table.to_string(),
@@ -163,7 +188,11 @@ fn generate_create_table_statement(
     columns: &[ColumnInfo],
     primary_keys: &[String],
 ) -> String {
-    let mut sql = format!("CREATE TABLE {}.{} (\n", quote_ident(schema), quote_ident(table));
+    let mut sql = format!(
+        "CREATE TABLE {}.{} (\n",
+        quote_ident(schema),
+        quote_ident(table)
+    );
 
     let column_defs: Vec<String> = columns
         .iter()
@@ -172,8 +201,11 @@ fn generate_create_table_statement(
             let mut default_clause = String::new();
 
             // Detect SERIAL/BIGSERIAL patterns to avoid "sequence does not exist" errors
-            let is_sequence = col.column_default.as_ref().map_or(false, |d| d.contains("nextval"));
-            
+            let is_sequence = col
+                .column_default
+                .as_ref()
+                .map_or(false, |d| d.contains("nextval"));
+
             if is_sequence {
                 if data_type.to_lowercase() == "integer" {
                     data_type = "SERIAL".to_string();
@@ -192,10 +224,11 @@ fn generate_create_table_statement(
             }
 
             let mut def = format!("    {} {}", quote_ident(&col.name), data_type);
-            if !col.is_nullable && !is_sequence { // SERIAL implies NOT NULL
+            if !col.is_nullable && !is_sequence {
+                // SERIAL implies NOT NULL
                 def.push_str(" NOT NULL");
             }
-            
+
             def.push_str(&default_clause);
             def
         })
@@ -234,4 +267,58 @@ pub async fn list_schemas(pool: &PgPool) -> Result<Vec<String>, String> {
 /// Quote an identifier for PostgreSQL
 fn quote_ident(name: &str) -> String {
     format!("\"{}\"", name.replace('"', "\"\""))
+}
+
+/// Get all table dependencies (Foreign Keys)
+pub async fn get_all_dependencies(pool: &PgPool) -> Result<Vec<TableDependency>, String> {
+    let query = r#"
+        SELECT
+            tc.table_schema,
+            tc.table_name,
+            ccu.table_schema AS foreign_table_schema,
+            ccu.table_name AS foreign_table_name
+        FROM information_schema.table_constraints AS tc
+        JOIN information_schema.key_column_usage AS kcu
+            ON tc.constraint_name = kcu.constraint_name
+            AND tc.table_schema = kcu.table_schema
+        JOIN information_schema.constraint_column_usage AS ccu
+            ON ccu.constraint_name = tc.constraint_name
+            AND ccu.table_schema = tc.table_schema
+        WHERE tc.constraint_type = 'FOREIGN KEY'
+            AND tc.table_schema NOT IN ('pg_catalog', 'information_schema')
+    "#;
+
+    let rows = sqlx::query(query)
+        .fetch_all(pool)
+        .await
+        .map_err(|e| format!("Failed to get dependencies: {}", e))?;
+
+    let mut map: std::collections::HashMap<(String, String), Vec<(String, String)>> =
+        std::collections::HashMap::new();
+
+    for row in rows {
+        let schema: String = row.get("table_schema");
+        let table: String = row.get("table_name");
+        let f_schema: String = row.get("foreign_table_schema");
+        let f_table: String = row.get("foreign_table_name");
+
+        // Avoid self-references causing issues (though they are valid dependencies, simple sorts might strictly fail or we handle them specially)
+        if schema != f_schema || table != f_table {
+            map.entry((schema, table))
+                .or_default()
+                .push((f_schema, f_table));
+        }
+    }
+
+    // Convert map to vector
+    let dependencies = map
+        .into_iter()
+        .map(|((schema, name), depends_on)| TableDependency {
+            schema,
+            name,
+            depends_on,
+        })
+        .collect();
+
+    Ok(dependencies)
 }

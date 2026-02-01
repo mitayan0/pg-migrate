@@ -188,3 +188,225 @@ pub async fn test_connection(config: ConnectionConfig) -> Result<bool, String> {
     pool.close().await;
     Ok(true)
 }
+
+/// Schema comparison result for a single table
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SchemaDiff {
+    pub schema: String,
+    pub table: String,
+    pub status: String, // "MATCH", "MISSING_IN_TARGET", "COLUMNS_MISMATCH"
+    pub details: Option<String>,
+}
+
+/// Compare source and target schemas
+#[tauri::command]
+pub async fn analyze_schema(
+    state: State<'_, Arc<AppState>>,
+    source_connection_id: String,
+    target_connection_id: String,
+    tables: Vec<TableSelection>,
+) -> Result<Vec<SchemaDiff>, String> {
+    let source_pool = state
+        .conn_manager
+        .get_pool(&source_connection_id)
+        .await
+        .ok_or("Source connection not found")?;
+
+    let target_pool = state
+        .conn_manager
+        .get_pool(&target_connection_id)
+        .await
+        .ok_or("Target connection not found")?;
+
+    let mut diffs = Vec::new();
+
+    for t in tables {
+        let source_schema = crate::db::get_table_schema(&source_pool, &t.schema, &t.name).await;
+
+        match source_schema {
+            Ok(s_schema) => {
+                // Check if exists in target
+                // Note: We might want to handle target_schema_override logic here too eventually
+                let target_schema =
+                    crate::db::get_table_schema(&target_pool, &t.schema, &t.name).await;
+
+                match target_schema {
+                    Ok(t_schema) => {
+                        // Compare columns
+                        let mut mismatch_details = Vec::new();
+
+                        // Check for missing columns in target
+                        for s_col in &s_schema.columns {
+                            let t_col = t_schema.columns.iter().find(|c| c.name == s_col.name);
+                            match t_col {
+                                Some(tc) => {
+                                    if s_col.data_type != tc.data_type {
+                                        mismatch_details.push(format!(
+                                            "Column '{}' type mismatch: {} vs {}",
+                                            s_col.name, s_col.data_type, tc.data_type
+                                        ));
+                                    }
+                                    if s_col.is_nullable != tc.is_nullable {
+                                        // Warning only?
+                                    }
+                                }
+                                None => {
+                                    mismatch_details
+                                        .push(format!("Column '{}' missing in target", s_col.name));
+                                }
+                            }
+                        }
+
+                        if mismatch_details.is_empty() {
+                            diffs.push(SchemaDiff {
+                                schema: t.schema,
+                                table: t.name,
+                                status: "MATCH".to_string(),
+                                details: None,
+                            });
+                        } else {
+                            diffs.push(SchemaDiff {
+                                schema: t.schema,
+                                table: t.name,
+                                status: "COLUMNS_MISMATCH".to_string(),
+                                details: Some(mismatch_details.join(", ")),
+                            });
+                        }
+                    }
+                    Err(_) => {
+                        diffs.push(SchemaDiff {
+                            schema: t.schema,
+                            table: t.name,
+                            status: "MISSING_IN_TARGET".to_string(),
+                            details: Some("Table does not exist in target database".to_string()),
+                        });
+                    }
+                }
+            }
+            Err(e) => {
+                diffs.push(SchemaDiff {
+                    schema: t.schema,
+                    table: t.name,
+                    status: "ERROR".to_string(),
+                    details: Some(format!("Failed to read source schema: {}", e)),
+                });
+            }
+        }
+    }
+
+    Ok(diffs)
+}
+
+/// Sort tables based on Foreign Key dependencies
+#[tauri::command]
+pub async fn sort_tables_by_dependency(
+    state: State<'_, Arc<AppState>>,
+    connection_id: String,
+    tables: Vec<TableSelection>,
+) -> Result<Vec<TableSelection>, String> {
+    let pool = state
+        .conn_manager
+        .get_pool(&connection_id)
+        .await
+        .ok_or("Connection not found")?;
+
+    let all_deps = crate::db::get_all_dependencies(&pool).await?;
+
+    // Filter deps to only include selected tables
+    // We only care if Table A depends on Table B AND both are in the selection list.
+
+    // Build Graph: Adjacency List
+    // key: (schema, table), value: list of dependencies (parents)
+    let mut graph: std::collections::HashMap<(String, String), Vec<(String, String)>> =
+        std::collections::HashMap::new();
+    let selected_set: std::collections::HashSet<(String, String)> = tables
+        .iter()
+        .map(|t| (t.schema.clone(), t.name.clone()))
+        .collect();
+
+    // Initialize graph with all selected tables
+    for t in &tables {
+        graph.insert((t.schema.clone(), t.name.clone()), Vec::new());
+    }
+
+    // Populate edges
+    for dep in all_deps {
+        if selected_set.contains(&(dep.schema.clone(), dep.name.clone())) {
+            for parent in dep.depends_on {
+                if selected_set.contains(&parent) {
+                    // Add edge: Node -> Parent
+                    if let Some(deps) = graph.get_mut(&(dep.schema.clone(), dep.name.clone())) {
+                        deps.push(parent);
+                    }
+                }
+            }
+        }
+    }
+
+    // Topological Sort (Kahn's Algorithm adaptation or simple DFS)
+    // We want to migrate PARENTS first.
+    // So if A depends on B, B comes before A.
+
+    let mut sorted_tables = Vec::new();
+    let mut visited = std::collections::HashSet::new();
+    let mut temp_visited = std::collections::HashSet::new(); // for cycle detection
+
+    // Recursive Visit function
+    fn visit(
+        node: &(String, String),
+        graph: &std::collections::HashMap<(String, String), Vec<(String, String)>>,
+        visited: &mut std::collections::HashSet<(String, String)>,
+        temp_visited: &mut std::collections::HashSet<(String, String)>,
+        sorted: &mut Vec<TableSelection>,
+    ) {
+        if visited.contains(node) {
+            return;
+        }
+        if temp_visited.contains(node) {
+            // Cycle detected! Just treat as visited to break loop,
+            // but ideally we should warn. For migration, we just output one.
+            return;
+        }
+
+        temp_visited.insert(node.clone());
+
+        if let Some(parents) = graph.get(node) {
+            for parent in parents {
+                visit(parent, graph, visited, temp_visited, sorted);
+            }
+        }
+
+        temp_visited.remove(node);
+        visited.insert(node.clone());
+        sorted.push(TableSelection {
+            schema: node.0.clone(),
+            name: node.1.clone(),
+        });
+    }
+
+    // The generic Topological Sort usually gives parents last if we do post-order traversal?
+    // Wait: Post-order DFS gives: [Leaf, ..., Root].
+    // If A depends on B (A -> B), we want B then A.
+    // My graph is: A has edge to B.
+    // visiting A -> visit B -> B has no deps -> push B. Then push A.
+    // So Result is [B, A]. This is CORRECT for migration (B created first).
+
+    // Make sure ordering is deterministic for non-dependent tables (alphabetical)
+    let mut nodes: Vec<(String, String)> = tables
+        .iter()
+        .map(|t| (t.schema.clone(), t.name.clone()))
+        .collect();
+    nodes.sort();
+
+    for node in nodes {
+        visit(
+            &node,
+            &graph,
+            &mut visited,
+            &mut temp_visited,
+            &mut sorted_tables,
+        );
+    }
+
+    Ok(sorted_tables)
+}
