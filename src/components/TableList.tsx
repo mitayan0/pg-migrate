@@ -7,6 +7,10 @@ interface TableListProps {
     selectedTables: Set<string>;
     onSelectionChange: (selected: Set<string>) => void;
     selectable: boolean;
+    onAnalyze?: () => void;
+    onSort?: () => void;
+    isAnalyzing?: boolean;
+    isSorting?: boolean;
 }
 
 export function TableList({
@@ -15,6 +19,10 @@ export function TableList({
     selectedTables,
     onSelectionChange,
     selectable,
+    onAnalyze,
+    onSort,
+    isAnalyzing,
+    isSorting,
 }: TableListProps) {
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedSchema, setSelectedSchema] = useState("all");
@@ -69,16 +77,58 @@ export function TableList({
         return num.toLocaleString();
     };
 
+    const getStatusIcon = (status?: string, details?: string) => {
+        if (!status) return null;
+        switch (status) {
+            case "MATCH":
+                return <span title="Schema matches" className="text-green-500">✓</span>;
+            case "MISSING_IN_TARGET":
+                return <span title="Missing in target" className="text-blue-500 text-xs px-1 border border-blue-500 rounded">NEW</span>;
+            case "COLUMNS_MISMATCH":
+                return <span title={details || "Column mismatch"} className="text-orange-500">⚠️</span>;
+            case "ERROR":
+                return <span title={details || "Error checking schema"} className="text-red-500">!</span>;
+            default:
+                return null;
+        }
+    };
+
     return (
-        <div className="g-card p-4 h-64 flex flex-col">
+        <div className="g-card p-4 h-96 flex flex-col">
             {/* Header */}
             <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-medium text-[var(--on-surface)]">
                     {label}
                 </h3>
-                <span className="g-chip text-xs">
-                    {tables.length} tables
-                </span>
+                <div className="flex items-center gap-2">
+                    {onSort && (
+                        <button
+                            onClick={onSort}
+                            disabled={isSorting || selectedTables.size === 0}
+                            title="Sort by Dependencies"
+                            className="p-1 rounded hover:bg-[var(--surface-variant)] disabled:opacity-30 transition-colors"
+                        >
+                            <svg className={`w-4 h-4 text-[var(--google-blue)] ${isSorting ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
+                            </svg>
+                        </button>
+                    )}
+                    {onAnalyze && (
+                        <button
+                            onClick={onAnalyze}
+                            disabled={isAnalyzing}
+                            title="Analyze Schema Differences"
+                            className="p-1 rounded hover:bg-[var(--surface-variant)] disabled:opacity-30 transition-colors"
+                        >
+                            <svg className={`w-4 h-4 text-[var(--google-blue)] ${isAnalyzing ? 'animate-pulse' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                        </button>
+                    )}
+                    <span className="g-chip text-xs">
+                        {tables.length} tables
+                    </span>
+                </div>
             </div>
 
             {/* Search & Filter */}
@@ -167,6 +217,7 @@ export function TableList({
                                         <span className="text-[10px] font-bold text-[var(--google-blue)] uppercase tracking-tight opacity-70">
                                             {table.schema}
                                         </span>
+                                        {selectable && getStatusIcon(table.status, table.statusDetails)}
                                     </div>
                                     <div className="flex items-center gap-3 mt-0.5">
                                         <span className="text-[10px] text-[var(--on-surface-variant)]">

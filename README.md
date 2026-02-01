@@ -11,6 +11,8 @@
 -   **Sequence Synchronization**: Automatically resets `SERIAL` and `BIGSERIAL` sequences on the target database to prevent unique constraint violations.
 -   **Safety First**: Non-destructive, high-fidelity cloning. Supports `ON CONFLICT DO NOTHING` and optional table truncation.
 -   **Bidirectional direction**: Swap source and target with a single click.
+-   **Smart Dependency Sorting**: Automatically sorts selected tables based on Foreign Key relationships to prevent constraint errors.
+-   **Schema Analysis**: Compare source and target schemas before migration to detect missing columns or type mismatches.
 -   **Cross-Platform**: Native executables for **Windows**, **Linux**, and **macOS**.
 
 ## 🛠️ Tech Stack

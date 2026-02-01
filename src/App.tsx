@@ -8,6 +8,7 @@ import { MigrationPanel } from "./components/MigrationPanel";
 import { ProgressBar } from "./components/ProgressBar";
 
 // Types
+// Types
 export interface ConnectionConfig {
   host: string;
   port: number;
@@ -29,6 +30,15 @@ export interface TableInfo {
   schema: string;
   row_count: number;
   size_bytes: number;
+  status?: "MATCH" | "MISSING_IN_TARGET" | "COLUMNS_MISMATCH" | "ERROR";
+  statusDetails?: string;
+}
+
+export interface SchemaDiff {
+  schema: string;
+  table: string;
+  status: "MATCH" | "MISSING_IN_TARGET" | "COLUMNS_MISMATCH" | "ERROR";
+  details?: string;
 }
 
 export interface MigrationProgress {
@@ -121,6 +131,8 @@ function App() {
   const [targetTables, setTargetTables] = useState<TableInfo[]>([]);
   const [targetSchemas, setTargetSchemas] = useState<string[]>([]);
   const [selectedTables, setSelectedTables] = useState<Set<string>>(new Set());
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isSorting, setIsSorting] = useState(false);
 
   // Migration states
   const [isMigrating, setIsMigrating] = useState(false);
@@ -198,6 +210,81 @@ function App() {
     setSelectedTables(new Set());
   };
 
+  const handleAnalyze = async () => {
+    if (!sourceConnection || !targetConnection) return;
+    
+    setIsAnalyzing(true);
+    try {
+      const tablesToAnalyze = sourceTables.map(t => ({ schema: t.schema, name: t.name }));
+      
+      const diffs = await invoke<SchemaDiff[]>("analyze_schema", {
+        sourceConnectionId: sourceConnection.id,
+        targetConnectionId: targetConnection.id,
+        tables: tablesToAnalyze
+      });
+
+      setSourceTables(prev => prev.map(t => {
+        const diff = diffs.find(d => d.schema === t.schema && d.name === t.name); // NOTE: SchemaDiff struct uses `table` not `name` based on Rust code
+        const diffItem = diffs.find(d => d.schema === t.schema && d.table === t.name);
+        if (diffItem) {
+          return { ...t, status: diffItem.status, statusDetails: diffItem.details };
+        }
+        return t;
+      }));
+    } catch (e) {
+      console.error("Analysis failed:", e);
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  const handleSort = async () => {
+    if (!sourceConnection) return;
+    if (selectedTables.size === 0) return;
+
+    setIsSorting(true);
+    try {
+      const selectedList = sourceTables
+        .filter(t => selectedTables.has(`${t.schema}.${t.name}`))
+        .map(t => ({ schema: t.schema, name: t.name }));
+
+      const sorted = await invoke<{schema: string, name: string}[]>("sort_tables_by_dependency", {
+        connectionId: sourceConnection.id,
+        tables: selectedList
+      });
+
+      // We have the sorted list. Now we need to rearrange selectedTables visually?
+      // Actually, TableList usually sorts by name. We should probably add a "sort mode" or just alert the user.
+      // Better idea: Re-order the entire `sourceTables` array so the sorted selected ones come FIRST or in order.
+      // Or just return the sorted list and use that order for migration.
+      // BUT, the user visually wants to see them sorted.
+      
+      // Let's create a map relative to the sorted list index to sort the main list.
+      const sortedMap = new Map();
+      sorted.forEach((t, i) => sortedMap.set(`${t.schema}.${t.name}`, i));
+      
+      setSourceTables(prev => {
+        const next = [...prev];
+        next.sort((a, b) => {
+          const keyA = `${a.schema}.${a.name}`;
+          const keyB = `${b.schema}.${b.name}`;
+          
+          const idxA = sortedMap.has(keyA) ? sortedMap.get(keyA) : Number.MAX_SAFE_INTEGER;
+          const idxB = sortedMap.has(keyB) ? sortedMap.get(keyB) : Number.MAX_SAFE_INTEGER;
+          
+          if (idxA !== idxB) return idxA - idxB;
+          return 0; // maintain relative order otherwise
+        });
+        return next;
+      });
+
+    } catch (e) {
+      console.error("Sorting failed:", e);
+    } finally {
+      setIsSorting(false);
+    }
+  };
+
   const handleMigrate = async () => {
     if (!sourceConnection || !targetConnection) return;
     if (selectedTables.size === 0) return;
@@ -207,6 +294,7 @@ function App() {
     setLastResult(null);
 
     try {
+      // Use the current order of sourceTables to determine migration order
       const tablesToMigrate = sourceTables
         .filter((t) => selectedTables.has(`${t.schema}.${t.name}`))
         .map((t) => ({ schema: t.schema, name: t.name }));
@@ -337,6 +425,10 @@ function App() {
             selectedTables={selectedTables}
             onSelectionChange={setSelectedTables}
             selectable={true}
+            onAnalyze={targetConnection ? handleAnalyze : undefined}
+            onSort={handleSort}
+            isAnalyzing={isAnalyzing}
+            isSorting={isSorting}
           />
         </div>
 
