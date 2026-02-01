@@ -1,4 +1,4 @@
-# <img src="assets/logo.png" width="48" align="center" /> PG-Migrate
+# <img src="public/logo.png" width="48" align="center" /> PG-Migrate
 
 **PG-Migrate** is a high-performance, cross-platform PostgreSQL table migration tool built with **Rust**, **Tauri**, and **React**. It is designed to be the fastest way to clone tables, schemas, and data between PostgreSQL databases with zero dependencies required on your system.
 
