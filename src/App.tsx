@@ -119,7 +119,6 @@ function App() {
   // Table states
   const [sourceTables, setSourceTables] = useState<TableInfo[]>([]);
   const [targetTables, setTargetTables] = useState<TableInfo[]>([]);
-  const [sourceSchemas, setSourceSchemas] = useState<string[]>([]);
   const [targetSchemas, setTargetSchemas] = useState<string[]>([]);
   const [selectedTables, setSelectedTables] = useState<Set<string>>(new Set());
 
@@ -152,12 +151,8 @@ function App() {
   useEffect(() => {
     if (sourceConnection?.connected) {
       fetchTables(sourceConnection.id, setSourceTables);
-      invoke<string[]>("get_schemas", { connectionId: sourceConnection.id })
-        .then(setSourceSchemas)
-        .catch(console.error);
     } else {
       setSourceTables([]);
-      setSourceSchemas([]);
     }
   }, [sourceConnection]);
 
