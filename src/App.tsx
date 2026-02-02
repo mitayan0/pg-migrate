@@ -212,11 +212,11 @@ function App() {
 
   const handleAnalyze = async () => {
     if (!sourceConnection || !targetConnection) return;
-    
+
     setIsAnalyzing(true);
     try {
       const tablesToAnalyze = sourceTables.map(t => ({ schema: t.schema, name: t.name }));
-      
+
       const diffs = await invoke<SchemaDiff[]>("analyze_schema", {
         sourceConnectionId: sourceConnection.id,
         targetConnectionId: targetConnection.id,
@@ -224,7 +224,6 @@ function App() {
       });
 
       setSourceTables(prev => prev.map(t => {
-        const diff = diffs.find(d => d.schema === t.schema && d.name === t.name); // NOTE: SchemaDiff struct uses `table` not `name` based on Rust code
         const diffItem = diffs.find(d => d.schema === t.schema && d.table === t.name);
         if (diffItem) {
           return { ...t, status: diffItem.status, statusDetails: diffItem.details };
@@ -248,7 +247,7 @@ function App() {
         .filter(t => selectedTables.has(`${t.schema}.${t.name}`))
         .map(t => ({ schema: t.schema, name: t.name }));
 
-      const sorted = await invoke<{schema: string, name: string}[]>("sort_tables_by_dependency", {
+      const sorted = await invoke<{ schema: string, name: string }[]>("sort_tables_by_dependency", {
         connectionId: sourceConnection.id,
         tables: selectedList
       });
@@ -258,20 +257,20 @@ function App() {
       // Better idea: Re-order the entire `sourceTables` array so the sorted selected ones come FIRST or in order.
       // Or just return the sorted list and use that order for migration.
       // BUT, the user visually wants to see them sorted.
-      
+
       // Let's create a map relative to the sorted list index to sort the main list.
       const sortedMap = new Map();
       sorted.forEach((t, i) => sortedMap.set(`${t.schema}.${t.name}`, i));
-      
+
       setSourceTables(prev => {
         const next = [...prev];
         next.sort((a, b) => {
           const keyA = `${a.schema}.${a.name}`;
           const keyB = `${b.schema}.${b.name}`;
-          
+
           const idxA = sortedMap.has(keyA) ? sortedMap.get(keyA) : Number.MAX_SAFE_INTEGER;
           const idxB = sortedMap.has(keyB) ? sortedMap.get(keyB) : Number.MAX_SAFE_INTEGER;
-          
+
           if (idxA !== idxB) return idxA - idxB;
           return 0; // maintain relative order otherwise
         });
@@ -340,24 +339,7 @@ function App() {
 
   return (
     <div className="min-h-screen p-6" style={{ background: 'var(--surface-dim)' }}>
-      {/* Header */}
-      <header className="mb-6">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: 'var(--google-blue)' }}>
-            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
-            </svg>
-          </div>
-          <div>
-            <h1 className="text-xl font-medium" style={{ color: 'var(--on-surface)', fontFamily: "'Google Sans', sans-serif" }}>
-              PostgreSQL Table Migrator
-            </h1>
-            <p className="text-sm" style={{ color: 'var(--on-surface-variant)' }}>
-              Bidirectional table migration
-            </p>
-          </div>
-        </div>
-      </header>
+
 
       {/* Connection Panels */}
       <div className="flex items-center gap-4 mb-6">
